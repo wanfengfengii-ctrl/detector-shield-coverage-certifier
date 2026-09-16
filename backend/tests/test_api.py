@@ -190,6 +190,42 @@ def test_missing_width_still_reports_polygon_structure_errors():
     assert "/polygons/2" in pointers         # 非数组多边形
 
 
+def test_missing_width_valid_height_reports_y_out_of_bounds():
+    # width 缺失但 height 有效：纵坐标越界必须照样报出，x 越界无法判定不报
+    r = post(
+        {
+            "height": 10,
+            "polygons": [[[0, 0], [5, 0], [5, 11], [0, 11]]],
+        }
+    )
+    assert r.status_code == 422
+    errors = r.json()["errors"]
+    pointers = {e["pointer"] for e in errors}
+    assert "/width" in pointers
+    assert "/polygons/0/2/1" in pointers     # y=11 越界（顶点 2）
+    assert "/polygons/0/3/1" in pointers     # y=11 越界（顶点 3）
+    # 宽度缺失，无法判定 x 越界，不应出现指向 x 轴（末段 /0）的错误
+    assert not any(
+        p.rsplit("/", 1)[-1] == "0" and p.startswith("/polygons") for p in pointers
+    )
+    assert any("y 坐标 11 越界" in e["message"] for e in errors)
+
+
+def test_missing_height_valid_width_reports_x_out_of_bounds():
+    # 反向：height 缺失但 width 有效时报 x 越界
+    r = post(
+        {
+            "width": 10,
+            "polygons": [[[0, 0], [12, 0], [12, 5], [0, 5]]],
+        }
+    )
+    assert r.status_code == 422
+    pointers = {e["pointer"] for e in r.json()["errors"]}
+    assert "/height" in pointers
+    assert "/polygons/0/1/0" in pointers
+    assert "/polygons/0/2/0" in pointers
+
+
 def test_diagonal_edge_reported_without_width_height():
     r = post({"polygons": [[[0, 0], [5, 3], [5, 5], [0, 5]]]})
     assert r.status_code == 422

@@ -72,7 +72,6 @@ def validate_document(data: object) -> list[ValidationIssue]:
             )
         )
 
-    bounds_known = _is_int(width) and _is_int(height)
     if polygons is not None:
         for i, poly in enumerate(polygons):
             if not isinstance(poly, list):
@@ -124,17 +123,17 @@ def validate_document(data: object) -> list[ValidationIssue]:
                 # 但其他多边形的检查继续（错误聚合）
                 continue
 
-            # 越界依赖基板宽高：宽高缺失或非法时无法判定，跳过
-            if bounds_known:
+            # 越界：x 只依赖宽度、y 只依赖高度，单边尺寸有效即检查对应坐标
+            if _is_int(width) or _is_int(height):
                 for j, (x, y) in enumerate(points):
-                    if not (0 <= x <= width):
+                    if _is_int(width) and not (0 <= x <= width):
                         issues.append(
                             ValidationIssue(
                                 _ptr("polygons", i, j, 0),
                                 f"x 坐标 {x} 越界，允许范围 [0, {width}]",
                             )
                         )
-                    if not (0 <= y <= height):
+                    if _is_int(height) and not (0 <= y <= height):
                         issues.append(
                             ValidationIssue(
                                 _ptr("polygons", i, j, 1),
