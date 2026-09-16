@@ -140,34 +140,41 @@ def analyze(
     gap_area = 0
     overlap_area = 0
 
-    def flush(
-        x0: int,
-        x1: int,
-        signature: tuple[tuple[int, Segment], ...] | None,
-    ) -> None:
-        nonlocal gap_area, overlap_area
-        if signature is None or x1 == x0:
-            return
-        for cat, s in signature:
-            if cat == COVERED:
-                continue  # 正常单层覆盖不出证据
-            evidence.append(Evidence(cat, x0, s.lo, x1, s.hi))
-            area = (x1 - x0) * (s.hi - s.lo)
-            if cat == GAP:
-                gap_area += area
-            else:
-                overlap_area += area
+    # 横向合并：逐个 (类别, 纵区间) 键在连续条带间独立延续。这样上方其他
+    # 纵区间的类别发生变化（例如出现/消失叠压）时，下方同一漏缝仍保持一
+    # 条证据，而不会被无关的签名差异截断。
+    active: dict[tuple[int, Segment], int] = {}
 
-    # 横向合并：仅当连续条带的签名（类别 + 纵区间）完全相同
-    group_x0 = group_x1 = 0
-    group_sig: tuple[tuple[int, Segment], ...] | None = None
-    for x0, x1, sig in columns:
-        if sig == group_sig:
-            group_x1 = x1
+    def flush_rect(key: tuple[int, Segment], x0: int, x1: int) -> None:
+        nonlocal gap_area, overlap_area
+        if x1 == x0:
+            return
+        cat, s = key
+        if cat == COVERED:
+            return  # 正常单层覆盖不出证据
+        evidence.append(Evidence(cat, x0, s.lo, x1, s.hi))
+        area = (x1 - x0) * (s.hi - s.lo)
+        if cat == GAP:
+            gap_area += area
         else:
-            flush(group_x0, group_x1, group_sig)
-            group_x0, group_x1, group_sig = x0, x1, sig
-    flush(group_x0, group_x1, group_sig)
+            overlap_area += area
+
+    prev_x1 = 0
+    for x0, x1, sig in columns:
+        current = set(sig)
+        # 上一条带存在、本带消失的键：结束并输出
+        for key, start in list(active.items()):
+            if key not in current:
+                flush_rect(key, start, prev_x1)
+                del active[key]
+        # 本带新出现的键：以本带左边界为起点
+        for key in current:
+            if key not in active:
+                active[key] = x0
+        prev_x1 = x1
+
+    for key, start in list(active.items()):
+        flush_rect(key, start, prev_x1)
 
     has_gap = any(e.category == GAP for e in evidence)
     has_overlap = any(e.category == OVERLAP for e in evidence)

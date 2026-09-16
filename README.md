@@ -9,7 +9,7 @@
 - **后端**：Python 3.12 · FastAPI · Pydantic（仅响应模型）· Uvicorn
 - **几何**：纯 Python 整数运算，无栅格、无浮点面积、无几何布尔库
 - **前端**：TypeScript · React 18 · Vite 6 · 纯 SVG（无 Canvas/栅格）
-- **测试**：pytest（后端 27 例）· Vitest（前端 10 例）· Playwright（e2e 5 例）
+- **测试**：pytest（后端 36 例）· Vitest（前端 10 例）· Playwright（e2e 6 例）
 - **运行**：Docker Compose 三个服务 `api` / `web` / `verify`
 
 ## 快速开始

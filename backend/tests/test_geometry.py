@@ -31,8 +31,36 @@ def test_gap_areas_and_horizontal_merge():
     assert r["gapArea"] == 64
     assert r["overlapArea"] == 0
     cats = {(e["left"], e["bottom"], e["right"], e["top"]) for e in r["evidence"]}
+    # 侧条带缺口纵区间为 [0,10]、中间条带为 [0,2]/[8,10]，纵区间不同不合并
     assert cats == {(0, 0, 2, 10), (2, 0, 8, 2), (2, 8, 8, 10), (8, 0, 10, 10)}
     assert all(e["category"] == "gap" for e in r["evidence"])
+
+
+def test_bottom_gap_merges_across_upper_overlap_change():
+    # 底部漏缝 [0,4] 纵区间贯穿全宽；上方叠压仅在中间条带出现/消失。
+    # 底部漏缝不得因上方类别的变化而被拆成多条证据。
+    polys = [
+        [(0, 4), (10, 4), (10, 10), (0, 10)],      # 上半整条板
+        [(4, 7), (8, 7), (8, 10), (4, 10)],        # 中央小拼片 -> 叠压
+    ]
+    r = analyze(polys, 10, 10)
+    assert r["status"] == "mixed"
+    assert r["gapArea"] == 40
+    assert r["overlapArea"] == 12
+    gap_rects = [
+        e for e in r["evidence"] if e["category"] == "gap"
+    ]
+    assert len(gap_rects) == 1
+    e = gap_rects[0]
+    assert (e["left"], e["bottom"], e["right"], e["top"]) == (0, 0, 10, 4)
+    overlap_rects = [e for e in r["evidence"] if e["category"] == "overlap"]
+    assert len(overlap_rects) == 1
+    assert (
+        overlap_rects[0]["left"],
+        overlap_rects[0]["bottom"],
+        overlap_rects[0]["right"],
+        overlap_rects[0]["top"],
+    ) == (4, 7, 8, 10)
 
 
 def test_overlap_two_rectangles():

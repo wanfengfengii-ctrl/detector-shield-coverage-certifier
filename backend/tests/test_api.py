@@ -170,6 +170,33 @@ def test_empty_body():
     assert r.status_code == 422
 
 
+def test_missing_width_still_reports_polygon_structure_errors():
+    # 缺 width 时，拼片自身的结构/边错误仍必须聚合上报
+    r = post(
+        {
+            "height": 10,
+            "polygons": [
+                [[0, 0], [5, 3], [5, 5], [0, 5]],   # 斜边
+                [[1, 1], [2, 1], [2, 2]],            # 顶点数不足
+                "not-a-polygon",
+            ],
+        }
+    )
+    assert r.status_code == 422
+    pointers = {e["pointer"] for e in r.json()["errors"]}
+    assert "/width" in pointers
+    assert "/polygons/0/0" in pointers       # 斜边边指针
+    assert "/polygons/1" in pointers         # 顶点数
+    assert "/polygons/2" in pointers         # 非数组多边形
+
+
+def test_diagonal_edge_reported_without_width_height():
+    r = post({"polygons": [[[0, 0], [5, 3], [5, 5], [0, 5]]]})
+    assert r.status_code == 422
+    msgs = [e["message"] for e in r.json()["errors"]]
+    assert any("斜边" in m for m in msgs)
+
+
 def test_pointer_codepoint_order_with_nested_indices():
     r = post(
         {

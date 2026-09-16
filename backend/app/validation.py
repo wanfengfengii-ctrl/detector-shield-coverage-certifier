@@ -73,7 +73,7 @@ def validate_document(data: object) -> list[ValidationIssue]:
         )
 
     bounds_known = _is_int(width) and _is_int(height)
-    if polygons is not None and bounds_known:
+    if polygons is not None:
         for i, poly in enumerate(polygons):
             if not isinstance(poly, list):
                 issues.append(
@@ -120,27 +120,30 @@ def validate_document(data: object) -> list[ValidationIssue]:
                     points_valid = False
 
             if not points_valid or len(points) != len(poly):
-                continue  # 顶点存在结构问题，跳过依赖坐标的语义检查
+                # 顶点存在结构问题时，跳过一切依赖完整坐标的检查；
+                # 但其他多边形的检查继续（错误聚合）
+                continue
 
-            # 越界
-            for j, (x, y) in enumerate(points):
-                if not (0 <= x <= width):
-                    issues.append(
-                        ValidationIssue(
-                            _ptr("polygons", i, j, 0),
-                            f"x 坐标 {x} 越界，允许范围 [0, {width}]",
+            # 越界依赖基板宽高：宽高缺失或非法时无法判定，跳过
+            if bounds_known:
+                for j, (x, y) in enumerate(points):
+                    if not (0 <= x <= width):
+                        issues.append(
+                            ValidationIssue(
+                                _ptr("polygons", i, j, 0),
+                                f"x 坐标 {x} 越界，允许范围 [0, {width}]",
+                            )
                         )
-                    )
-                if not (0 <= y <= height):
-                    issues.append(
-                        ValidationIssue(
-                            _ptr("polygons", i, j, 1),
-                            f"y 坐标 {y} 越界，允许范围 [0, {height}]",
+                    if not (0 <= y <= height):
+                        issues.append(
+                            ValidationIssue(
+                                _ptr("polygons", i, j, 1),
+                                f"y 坐标 {y} 越界，允许范围 [0, {height}]",
+                            )
                         )
-                    )
 
             n = len(points)
-            # 序列隐式闭合：首点不得在末尾重复
+            # 序列隐式闭合：首点不得在末尾重复（不依赖基板尺寸）
             if n >= 1 and points[0] == points[-1]:
                 issues.append(
                     ValidationIssue(
@@ -149,7 +152,7 @@ def validate_document(data: object) -> list[ValidationIssue]:
                     )
                 )
 
-            # 边：零长度 / 斜边（闭合边也检查；首点重复时跳过闭合边）
+            # 边：零长度 / 斜边（只依赖整数坐标，闭合边也检查）
             for j in range(n):
                 ax, ay = points[j]
                 bx, by = points[(j + 1) % n]

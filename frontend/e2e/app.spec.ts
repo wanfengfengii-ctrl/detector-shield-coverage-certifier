@@ -54,6 +54,26 @@ const DIAGONAL_JSON = JSON.stringify({
   ],
 });
 
+// 上半整条板 + 中央小拼片（中途叠压），底部漏缝纵区间贯穿全宽
+const GAP_ACROSS_OVERLAP_CHANGE_JSON = JSON.stringify({
+  width: 10,
+  height: 10,
+  polygons: [
+    [
+      [0, 4],
+      [10, 4],
+      [10, 10],
+      [0, 10],
+    ],
+    [
+      [4, 7],
+      [8, 7],
+      [8, 10],
+      [4, 10],
+    ],
+  ],
+});
+
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
@@ -101,6 +121,26 @@ test("mixed：缺口 32、叠压 4，证据矩形与明细行齐备并排序", a
   const overlapRows = page.locator('table[data-testid="evidence-table"] tr[data-category="overlap"]');
   expect(await gapRows.count()).toBeGreaterThan(0);
   await expect(overlapRows).toHaveCount(1);
+});
+
+test("底部漏缝跨过上方叠压变化位置仍保持一条证据", async ({ page }) => {
+  await page.getByTestId("json-input").fill(GAP_ACROSS_OVERLAP_CHANGE_JSON);
+  await page.getByTestId("analyze-btn").click();
+
+  await expect(page.getByTestId("status-badge")).toHaveText("缺口与叠压并存");
+  await expect(page.getByTestId("gap-area")).toContainText("40");
+  await expect(page.getByTestId("overlap-area")).toContainText("12");
+
+  // 底缝必须是跨越整条板宽 (0..10) 的单个矩形，尽管叠压在 x=4/8 处变化
+  const gapRects = page.locator("rect.evidence-gap");
+  await expect(gapRects).toHaveCount(1);
+  await expect(gapRects).toHaveAttribute("x", "0");
+  await expect(gapRects).toHaveAttribute("y", "0");
+  await expect(gapRects).toHaveAttribute("width", "10");
+  await expect(gapRects).toHaveAttribute("height", "4");
+
+  const overlapRect = page.locator("rect.evidence-overlap");
+  await expect(overlapRect).toHaveCount(1);
 });
 
 test("422 聚合错误按指针显示，输入保留、旧结果被清除", async ({ page }) => {
